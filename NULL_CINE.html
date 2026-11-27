@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NULL_CINE — tu videoteca privada</title>
+<style>
+:root{--bg:#030806;--panel:#07120d;--line:#0f3d26;--fg:#b6ffd4;--dim:#5f9a7b;--acc:#00ff7f;--warn:#ff4d6d;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Courier New",ui-monospace,Menlo,monospace;line-height:1.5;min-height:100vh}
+canvas#rain{position:fixed;inset:0;width:100%;height:100%;opacity:.16;z-index:0;pointer-events:none}
+body::after{content:"";position:fixed;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px);pointer-events:none;z-index:5}
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
+h1{margin:0;font-size:clamp(1.6rem,5vw,2.6rem);letter-spacing:.04em;color:var(--acc);text-shadow:0 0 12px rgba(0,255,127,.55)}
+h1 span{animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+.sub{color:var(--dim);font-size:.85rem;margin:4px 0 0}
+button,input,textarea,select{font:inherit;color:var(--fg)}
+button{background:transparent;border:1px solid var(--acc);color:var(--acc);padding:8px 14px;cursor:pointer}
+button:hover,button:focus-visible{background:var(--acc);color:#001a0d;outline:none}
+button.danger{border-color:var(--warn);color:var(--warn)}
+button.danger:hover{background:var(--warn);color:#1a0006}
+input,textarea,select{width:100%;background:#020a06;border:1px solid var(--line);padding:9px;margin:4px 0 12px}
+input:focus,textarea:focus{outline:1px solid var(--acc)}
+label{color:var(--dim);font-size:.85rem}
+.bar{display:flex;gap:10px;margin:18px 0}
+.bar input{margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);cursor:pointer;display:flex;flex-direction:column}
+.card:hover{border-color:var(--acc);box-shadow:0 0 16px rgba(0,255,127,.25)}
+.poster{aspect-ratio:2/3;background:#020a06 center/cover;display:flex;align-items:center;justify-content:center;color:var(--line);font-size:3rem;border-bottom:1px solid var(--line)}
+.card .info{padding:10px}
+.card h3{margin:0;font-size:1rem;color:var(--acc)}
+.meta{color:var(--dim);font-size:.78rem}
+.empty{border:1px dashed var(--line);padding:30px;color:var(--dim);text-align:center}
+.modal{position:fixed;inset:0;background:rgba(0,6,3,.94);z-index:20;overflow:auto;padding:16px;display:none}
+.modal.on{display:block}
+.box{max-width:900px;margin:0 auto;background:var(--panel);border:1px solid var(--acc);padding:16px;box-shadow:0 0 30px rgba(0,255,127,.2)}
+video{width:100%;max-height:70vh;background:#000;border:1px solid var(--line)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.admin-list .item{display:flex;justify-content:space-between;gap:10px;align-items:center;border-bottom:1px solid var(--line);padding:8px 0}
+.prog{height:6px;background:var(--line);margin:-6px 0 12px}.prog i{display:block;height:100%;width:0;background:var(--acc)}
+.msg{color:var(--warn);min-height:1.4em;font-size:.85rem}
+.ok{color:var(--acc)}
+.hide{display:none}
+@media(max-width:520px){.grid{grid-template-columns:repeat(2,1fr);gap:10px}}
+@media(prefers-reduced-motion:reduce){h1 span{animation:none}}
+</style>
+</head>
+<body>
+<canvas id="rain"></canvas>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>NULL_CINE<span>_</span></h1>
+      <p class="sub">root@videoteca:~$ catálogo personal · acceso cifrado</p>
+    </div>
+    <button id="btnAdmin">Panel admin</button>
+  </header>
+
+  <div class="bar"><input id="search" placeholder="buscar película, género o año…" aria-label="Buscar"></div>
+  <div id="grid" class="grid"></div>
+</div>
+
+<!-- Reproductor -->
+<div class="modal" id="player"><div class="box">
+  <div class="row"><h2 id="pTitle" style="margin:0;color:var(--acc)"></h2><button id="pClose">Cerrar</button></div>
+  <p class="meta" id="pMeta"></p>
+  <video id="vid" controls playsinline></video>
+  <p id="pDesc" style="white-space:pre-wrap"></p>
+</div></div>
+
+<!-- Admin -->
+<div class="modal" id="admin"><div class="box">
+  <div class="row"><h2 style="margin:0;color:var(--acc)">Panel de administrador</h2><button id="aClose">Cerrar</button></div>
+
+  <div id="login">
+    <p class="meta" id="loginHint"></p>
+    <label for="pass">Contraseña</label>
+    <input id="pass" type="password" autocomplete="current-password">
+    <button id="btnLogin">Entrar</button>
+    <p class="msg" id="loginMsg"></p>
+  </div>
+
+  <div id="panel" class="hide">
+    <h3 style="color:var(--acc)">Subir película</h3>
+    <label for="fTitle">Título</label><input id="fTitle">
+    <div class="row" style="gap:12px;align-items:flex-start">
+      <div style="flex:1"><label for="fYear">Año</label><input id="fYear" inputmode="numeric"></div>
+      <div style="flex:2"><label for="fGenre">Género</label><input id="fGenre" placeholder="Acción, Ciencia ficción…"></div>
+    </div>
+    <label for="fDesc">Descripción</label><textarea id="fDesc" rows="4"></textarea>
+    <label for="fPoster">Portada (imagen, opcional)</label><input id="fPoster" type="file" accept="image/*">
+    <label for="fVideo">Archivo de video (mp4, webm…)</label><input id="fVideo" type="file" accept="video/*">
+    <div class="prog hide" id="prog"><i></i></div>
+    <button id="btnSave">Guardar en la videoteca</button>
+    <p class="msg" id="saveMsg"></p>
+
+    <h3 style="color:var(--acc)">Películas guardadas</h3>
+    <div id="list" class="admin-list"></div>
+    <p class="meta">Los archivos se guardan en este navegador (IndexedDB). Sube solo contenido del que tengas derechos o permiso para usar.</p>
+    <button class="danger" id="btnLogout">Cerrar sesión</button>
+  </div>
+</div></div>
+
+<script>
+(function(){
+  // ---------- Fondo tipo Matrix ----------
+  var cv=document.getElementById('rain'),cx=cv.getContext('2d'),cols,drops;
+  function size(){cv.width=innerWidth;cv.height=innerHeight;cols=Math.floor(cv.width/16);drops=Array(cols).fill(1)}
+  size();addEventListener('resize',size);
+  var chars='01アイウエオカキクケコ#$%&<>/\\{}';
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    setInterval(function(){
+      cx.fillStyle='rgba(3,8,6,.12)';cx.fillRect(0,0,cv.width,cv.height);
+      cx.fillStyle='#00ff7f';cx.font='14px monospace';
+      for(var i=0;i<drops.length;i++){
+        cx.fillText(chars[Math.floor(Math.random()*chars.length)],i*16,drops[i]*16);
+        if(drops[i]*16>cv.height&&Math.random()>.975)drops[i]=0;drops[i]++;
+      }
+    },60);
+  }
+
+  // ---------- IndexedDB ----------
+  var db;
+  function open(){return new Promise(function(res,rej){
+    var r=indexedDB.open('nullcine',1);
+    r.onupgradeneeded=function(){r.result.createObjectStore('movies',{keyPath:'id'})};
+    r.onsuccess=function(){db=r.result;res()};r.onerror=function(){rej(r.error)};
+  })}
+  function tx(mode){return db.transaction('movies',mode).objectStore('movies')}
+  function all(){return new Promise(function(res,rej){var r=tx('readonly').getAll();r.onsuccess=function(){res(r.result)};r.onerror=function(){rej(r.error)}})}
+  function put(m){return new Promise(function(res,rej){var r=tx('readwrite').put(m);r.onsuccess=res;r.onerror=function(){rej(r.error)}})}
+  function del(id){return new Promise(function(res,rej){var r=tx('readwrite').delete(id);r.onsuccess=res;r.onerror=function(){rej(r.error)}})}
+
+  var $=function(i){return document.getElementById(i)};
+  var movies=[],urls=[];
+  function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+  // ---------- Catálogo ----------
+  function render(){
+    urls.forEach(URL.revokeObjectURL);urls=[];
+    var q=$('search').value.toLowerCase();
+    var list=movies.filter(function(m){return (m.title+' '+m.genre+' '+m.year).toLowerCase().indexOf(q)>-1})
+      .sort(function(a,b){return b.created-a.created});
+    var g=$('grid');
+    if(!list.length){g.innerHTML='<div class="empty" style="grid-column:1/-1">'+(movies.length?'Sin resultados para esa búsqueda.':'Videoteca vacía. Abre el panel admin y sube tu primera película.')+'</div>';return}
+    g.innerHTML='';
+    list.forEach(function(m){
+      var c=document.createElement('div');c.className='card';c.tabIndex=0;
+      var bg='';if(m.poster){var u=URL.createObjectURL(m.poster);urls.push(u);bg=' style="background-image:url('+u+')"'}
+      c.innerHTML='<div class="poster"'+bg+'>'+(m.poster?'':'▶')+'</div><div class="info"><h3>'+esc(m.title)+'</h3><div class="meta">'+esc(m.year)+(m.genre?' | '+esc(m.genre):'')+'</div></div>';
+      c.onclick=function(){play(m)};
+      c.onkeydown=function(e){if(e.key==='Enter')play(m)};
+      g.appendChild(c);
+    });
+  }
+  var curUrl;
+  function play(m){
+    $('pTitle').textContent=m.title;
+    $('pMeta').textContent=[m.year,m.genre].filter(Boolean).join(' | ');
+    $('pDesc').textContent=m.desc||'Sin descripción.';
+    curUrl=URL.createObjectURL(m.video);$('vid').src=curUrl;
+    $('player').classList.add('on');
+  }
+  $('pClose').onclick=function(){$('vid').pause();$('vid').removeAttribute('src');$('vid').load();if(curUrl)URL.revokeObjectURL(curUrl);$('player').classList.remove('on')};
+  $('search').oninput=render;
+
+  // ---------- Admin / login ----------
+  function sha(s){return crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)).then(function(b){return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0')}).join('')})}
+  function getHash(){try{return localStorage.getItem('nc_pass')}catch(e){return null}}
+  function setHash(h){try{localStorage.setItem('nc_pass',h)}catch(e){}}
+  var authed=false;
+  function showAdmin(){
+    $('admin').classList.add('on');
+    $('login').classList.toggle('hide',authed);$('panel').classList.toggle('hide',!authed);
+    $('loginHint').textContent=getHash()?'Identifícate para acceder al panel.':'Primera vez: crea tu contraseña de administrador (mínimo 6 caracteres).';
+    $('btnLogin').textContent=getHash()?'Entrar':'Crear contraseña';
+    if(authed)adminList();
+  }
+  $('btnAdmin').onclick=showAdmin;
+  $('aClose').onclick=function(){$('admin').classList.remove('on')};
+  $('btnLogin').onclick=function(){
+    var p=$('pass').value;$('loginMsg').textContent='';
+    if(p.length<6){$('loginMsg').textContent='Error: la contraseña debe tener al menos 6 caracteres.';return}
+    sha(p).then(function(h){
+      var s=getHash();
+      if(!s){setHash(h);authed=true}
+      else if(s===h){authed=true}
+      else{$('loginMsg').textContent='Acceso denegado: contraseña incorrecta.';return}
+      $('pass').value='';showAdmin();
+    });
+  };
+  $('btnLogout').onclick=function(){authed=false;showAdmin()};
+
+  function adminList(){
+    var l=$('list');
+    if(!movies.length){l.innerHTML='<div class="meta">Aún no hay películas.</div>';return}
+    l.innerHTML='';
+    movies.slice().sort(function(a,b){return b.created-a.created}).forEach(function(m){
+      var d=document.createElement('div');d.className='item';
+      d.innerHTML='<span>'+esc(m.title)+' <span class="meta">('+esc(m.year)+')</span></span>';
+      var b=document.createElement('button');b.className='danger';b.textContent='Eliminar';
+      b.onclick=function(){if(confirm('¿Eliminar “'+m.title+'”?'))del(m.id).then(load)};
+      d.appendChild(b);l.appendChild(d);
+    });
+  }
+
+  $('btnSave').onclick=function(){
+    var t=$('fTitle').value.trim(),v=$('fVideo').files[0],p=$('fPoster').files[0],msg=$('saveMsg');
+    msg.className='msg';msg.textContent='';
+    if(!t||!v){msg.textContent='Error: el título y el archivo de video son obligatorios.';return}
+    var bar=$('prog');bar.classList.remove('hide');bar.firstElementChild.style.width='40%';
+    var m={id:Date.now()+'-'+Math.random().toString(36).slice(2,7),title:t,year:$('fYear').value.trim(),genre:$('fGenre').value.trim(),desc:$('fDesc').value.trim(),video:v,poster:p||null,created:Date.now()};
+    put(m).then(function(){
+      bar.firstElementChild.style.width='100%';
+      ['fTitle','fYear','fGenre','fDesc','fVideo','fPoster'].forEach(function(i){$(i).value=''});
+      msg.className='msg ok';msg.textContent='Guardada: “'+t+'” ya está en la videoteca.';
+      setTimeout(function(){bar.classList.add('hide')},800);
+      return load();
+    }).catch(function(){bar.classList.add('hide');msg.textContent='Error al guardar: puede que el navegador no tenga espacio suficiente para este archivo.'});
+  };
+
+  function load(){return all().then(function(a){movies=a;render();if(authed)adminList()})}
+  open().then(load).catch(function(){$('grid').innerHTML='<div class="empty" style="grid-column:1/-1">Error: este navegador bloquea el almacenamiento local necesario.</div>'});
+})();
+</script>
+</body>
+</html>
